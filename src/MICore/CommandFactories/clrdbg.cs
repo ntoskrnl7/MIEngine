@@ -237,6 +237,11 @@ namespace MICore
             throw new NotImplementedException("clrdbg catch command");
         }
 
+        public override Task ExecJump(string filename, int line, ResultClass resultClass = ResultClass.running)
+        {
+            throw new NotImplementedException("clrdbg jump command");
+        }
+
         public override string GetTargetArchitectureCommand()
         {
             return null;

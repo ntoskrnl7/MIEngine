@@ -35,11 +35,14 @@ namespace OpenDebugAD7
         private string m_processName;
         private IDebugEngineLaunch2 m_engineLaunch;
         private IDebugEngine2 m_engine;
+        
         private EngineConfiguration m_engineConfiguration;
         private AD7Port m_port;
 
         private readonly DebugEventLogger m_logger;
         private readonly Dictionary<string, Dictionary<int, IDebugPendingBreakpoint2>> m_breakpoints;
+        private readonly Dictionary<int, GotoTarget> m_gotoTargts;
+
         private Dictionary<string, IDebugPendingBreakpoint2> m_functionBreakpoints;
         private readonly Dictionary<int, ThreadFrameEnumInfo> m_threadFrameEnumInfos = new Dictionary<int, ThreadFrameEnumInfo>();
         private readonly HandleCollection<IDebugStackFrame2> m_frameHandles;
@@ -71,7 +74,7 @@ namespace OpenDebugAD7
             // This initializes this.Protocol with the streams
             base.InitializeProtocolClient(debugAdapterStdIn, debugAdapterStdOut);
             Debug.Assert(Protocol != null, "InitializeProtocolClient should have initialized this.Protocol");
-
+            
             RegisterAD7EventCallbacks();
             m_logger = new DebugEventLogger(Protocol.SendEvent, loggingCategories);
 
@@ -80,6 +83,7 @@ namespace OpenDebugAD7
 
             m_frameHandles = new HandleCollection<IDebugStackFrame2>();
             m_breakpoints = new Dictionary<string, Dictionary<int, IDebugPendingBreakpoint2>>();
+            m_gotoTargts = new Dictionary<int, GotoTarget>();
             m_functionBreakpoints = new Dictionary<string, IDebugPendingBreakpoint2>();
             m_variableManager = new VariableManager();
         }
@@ -583,6 +587,7 @@ namespace OpenDebugAD7
 
             InitializeResponse initializeResponse = new InitializeResponse()
             {
+                SupportsGotoTargetsRequest = true,
                 SupportsConfigurationDoneRequest = true,
                 SupportsEvaluateForHovers = true,
                 SupportsSetVariable = true,
@@ -1142,6 +1147,123 @@ namespace OpenDebugAD7
             m_program.CauseBreak();
             responder.SetResponse(new PauseResponse());
         }
+        
+        protected override void HandleGotoRequestAsync(IRequestResponder<GotoArguments> responder)
+        {
+            if (m_isStopped)
+            {
+                GotoTarget gotoTarget;
+                lock (m_gotoTargts)
+                {
+                    m_gotoTargts.TryGetValue(responder.Arguments.TargetId, out gotoTarget);
+                    m_gotoTargts.Remove(responder.Arguments.TargetId);
+                }
+                
+                BeforeContinue();
+                ErrorBuilder builder = new ErrorBuilder(() => AD7Resources.Error_UnableToSetNextStatement);
+                try
+                {
+                    MethodInfo methodInfo = m_program.GetType().GetMethod("Jump");
+                    if (methodInfo == null)
+                    {
+                        methodInfo = m_program.GetType().GetRuntimeMethod("Jump", new Type[] { typeof(string), typeof(int) });
+                    }
+
+                    methodInfo.Invoke(m_program, new object[] { gotoTarget.Label, gotoTarget.Line });
+                }
+                catch (AD7Exception)
+                {
+                    m_isStopped = true;
+                    throw;
+                }
+            }
+
+            responder.SetResponse(new GotoResponse());
+        }
+        
+        protected override void HandleGotoTargetsRequestAsync(IRequestResponder<GotoTargetsArguments, GotoTargetsResponse> responder)
+        {
+            GotoTargetsResponse response = new GotoTargetsResponse();
+
+            string path = null;
+            string name = null;
+
+            if (responder.Arguments.Source != null)
+            {
+                string p = responder.Arguments.Source.Path;
+                if (p != null && p.Trim().Length > 0)
+                {
+                    path = p;
+                }
+                string nm = responder.Arguments.Source.Name;
+                if (nm != null && nm.Trim().Length > 0)
+                {
+                    name = nm;
+                }
+            }
+
+            var source = new Source()
+            {
+                Name = name,
+                Path = path,
+                SourceReference = 0
+            };
+            
+            if (source.Path != null)
+            {
+                ErrorBuilder eb = new ErrorBuilder(() => AD7Resources.Error_UnableToSetNextStatement);
+
+                try
+                {
+                    string convertedPath = m_pathConverter.ConvertClientPathToDebugger(source.Path);
+
+                    if (Utilities.IsWindows() && convertedPath.Length > 2)
+                    {
+                        // vscode may send drive letters with inconsistent casing which will mess up the key
+                        // in the dictionary.  see https://github.com/Microsoft/vscode/issues/6268
+                        // Normalize the drive letter casing. Note that drive letters
+                        // are not localized so invariant is safe here.
+                        string drive = convertedPath.Substring(0, 2);
+                        if (char.IsLower(drive[0]) && drive.EndsWith(":", StringComparison.Ordinal))
+                        {
+                            convertedPath = String.Concat(drive.ToUpperInvariant(), convertedPath.Substring(2));
+                        }
+                    }
+
+
+                    var resTargets = new List<GotoTarget>();
+
+                    lock (m_gotoTargts)
+                    {
+                        int newKey;
+                        Random random = new Random();
+
+                        do
+                        {
+                            newKey = random.Next();
+                        } while (m_gotoTargts.ContainsKey(newKey));
+
+                        GotoTarget gotoTargt = new GotoTarget(newKey, convertedPath, responder.Arguments.Line);
+                        m_gotoTargts.Add(newKey, gotoTargt);
+                        resTargets.Add(gotoTargt);
+                    }
+
+                    response.Targets = resTargets;
+                }
+                catch (Exception e)
+                {
+                    e = Utilities.GetInnerMost(e);
+                    if (Utilities.IsCorruptingException(e))
+                    {
+                        Utilities.ReportException(e);
+                    }
+
+                    response.Targets = null;
+                }
+            }
+
+            responder.SetResponse(response);
+        }
 
         protected override void HandleStackTraceRequestAsync(IRequestResponder<StackTraceArguments, StackTraceResponse> responder)
         {
@@ -1565,6 +1687,7 @@ namespace OpenDebugAD7
                                 {
                                     Id = (int)pBPRequest.Id,
                                     Verified = true,
+                                    Source = source,
                                     Line = bp.Line
                                 });
                             }
@@ -1580,6 +1703,7 @@ namespace OpenDebugAD7
                                 {
                                     Id = (int)pBPRequest.Id,
                                     Verified = false,
+                                    Source = source,
                                     Line = bp.Line,
                                     Message = eb.GetMessageForException(e)
                                 });
@@ -2024,8 +2148,18 @@ namespace OpenDebugAD7
 
             string exceptionDescription;
             exceptionEvent.GetExceptionDescription(out exceptionDescription);
+            EXCEPTION_INFO[] exceptionInfo = new EXCEPTION_INFO[1];
 
-            FireStoppedEvent(pThread, StoppedEvent.ReasonValue.Exception, exceptionDescription);
+            exceptionEvent.GetException(exceptionInfo);
+
+            if (exceptionInfo[0].bstrExceptionName.Equals("Unknown breakpoint"))
+            {
+                FireStoppedEvent(pThread, StoppedEvent.ReasonValue.Breakpoint);
+            }
+            else
+            {
+                FireStoppedEvent(pThread, StoppedEvent.ReasonValue.Exception, exceptionDescription);
+            }
         }
 
         public Task HandleIDebugProgramCreateEvent2(IDebugEngine2 pEngine, IDebugProcess2 pProcess, IDebugProgram2 pProgram, IDebugThread2 pThread, IDebugEvent2 pEvent)

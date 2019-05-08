@@ -172,6 +172,12 @@ namespace MICore
             throw new NotImplementedException("lldb catch command");
         }
 
+        public override async Task ExecJump(string filename, int line, ResultClass resultClass = ResultClass.running)
+        {
+            string command = "jump " + filename + ":" + line;
+            await _debugger.CmdAsync(command, resultClass);
+        }
+
         /// <summary>
         /// Assigns the value of an expression to a variable.
         /// Since LLDB only accepts assigning values to variables, the expression may need to be evaluated.

@@ -233,7 +233,7 @@ namespace MICore
             string command = "-exec-finish";
             await ThreadFrameCmdAsync(command, resultClass, threadId, 0);
         }
-
+        
         public async Task ExecStepInstruction(int threadId, ResultClass resultClass = ResultClass.running)
         {
             string command = "-exec-step-instruction";
@@ -245,6 +245,8 @@ namespace MICore
             string command = "-exec-next-instruction";
             await ThreadFrameCmdAsync(command, resultClass, threadId, 0);
         }
+
+        abstract public Task ExecJump(string filename, int line, ResultClass resultClass = ResultClass.running);
 
         /// <summary>
         /// Tells GDB to spawn a target process previous setup with -file-exec-and-symbols or similar

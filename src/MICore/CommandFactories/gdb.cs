@@ -278,5 +278,12 @@ namespace MICore
             string command = onlyOnce ? "tcatch " : "catch ";
             await _debugger.ConsoleCmdAsync(command + name);
         }
+        
+        public override async Task ExecJump(string filename, int line, ResultClass resultClass = ResultClass.done)
+        {
+            string target = (String.IsNullOrEmpty(filename) ? "" : filename + ":") + line;           
+            await _debugger.CmdAsync("-break-insert -t " + target, ResultClass.done);
+            await _debugger.CmdAsync("-exec-jump " + target, resultClass);
+        }
     }
 }

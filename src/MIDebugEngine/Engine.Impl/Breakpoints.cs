@@ -114,7 +114,10 @@ namespace Microsoft.MIDebugEngine
             string compilerSrcName;
             if (!process.MapCurrentSrcToCompileTimeSrc(documentName, out compilerSrcName))
             {
-                compilerSrcName = Path.GetFileName(documentName);   
+                if (process.MICommandFactory.Mode == MIMode.Clrdbg)
+                {
+                    compilerSrcName = Path.GetFileName(documentName);
+                }
             }
             return await EvalBindResult(await process.MICommandFactory.BreakInsert(compilerSrcName, process.UseUnixSymbolPaths, line, condition, enabled, checksums, ResultClass.None), pbreak);
         }

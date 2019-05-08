@@ -126,5 +126,10 @@ namespace OpenDebugAD7.AD7Impl
         {
             throw new NotImplementedException();
         }
+
+        public int Jump(IDebugThread2 pThread, string filename, int line)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

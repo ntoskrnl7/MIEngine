@@ -13,6 +13,14 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <TargetFrameworkProfile />
     <OutputPath>$(MIDefaultOutputPath)</OutputPath>
+    <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+    <FileUpgradeFlags>
+    </FileUpgradeFlags>
+    <UpgradeBackupLocation>
+    </UpgradeBackupLocation>
+    <OldToolsVersion>14.0</OldToolsVersion>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -123,7 +131,7 @@
     <Reference Include="$(NugetPackagesDirectory)\Microsoft.VisualStudio.Shell.15.0.$(Microsoft_VisualStudio_Shell_15_0_Version)\lib\Microsoft.VisualStudio.Shell.15.0.dll">
       <Private>False</Private>
     </Reference>
-    <Reference Include="$(NugetPackagesDirectory)\Microsoft.VisualStudio.Threading.$(Microsoft_VisualStudio_Threading_Version)\lib\net45\Microsoft.VisualStudio.Threading.dll">
+    <Reference Include="G:\git\MIEngine\src\packages\Microsoft.VisualStudio.Threading.15.3.20\lib\net45\Microsoft.VisualStudio.Threading.dll">
       <Private>False</Private>
     </Reference>
     <Reference Include="$(NugetPackagesDirectory)\Microsoft.VisualStudio.Shell.Framework.$(Microsoft_VisualStudio_Shell_Framework_Version)\lib\net45\Microsoft.VisualStudio.Shell.Framework.dll">
@@ -141,6 +149,9 @@
     </Reference>
     <Reference Include="Microsoft.VisualStudio.Shell.Immutable.12.0, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.Threading, Version=15.3.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.VisualStudio.Threading.15.3.20\lib\net45\Microsoft.VisualStudio.Threading.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
